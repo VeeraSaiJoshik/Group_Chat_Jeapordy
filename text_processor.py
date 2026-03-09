@@ -4,6 +4,7 @@ import asyncio
 from tqdm import tqdm
 import math
 import re
+from sentence_transformers import SentenceTransformer, util
 
 MINUTE = 60
 
@@ -16,6 +17,7 @@ class Message:
         self.date_time = datetime.strptime(f"{raw_date}, {raw_time}", "%m/%d/%y, %I:%M:%S %p") 
         self.text = message.split(": ")[1] if len(message.split(": ")) > 1 else ""
         self.author = message.split(": ")[0].split("] ")[1].strip()
+        self.encoding = None
 
 class Convo:
     def is_worthy_message(message_obj: Message, _):
@@ -104,6 +106,9 @@ def remove_short_outliers(conversations: list[list[Message]]) -> list[list[Messa
       return [c for c in conversations if len(c) >= lower_bound]
 
 def clean_messages(messages: list[Message]):
+    # removing messages that are reoccuring
+    # TODO
+
     # removing messages from stale conversations
     is_ingroup = lambda prevs, message : math.fabs((prevs[-1].date_time - message.date_time).total_seconds()) < 60 * MINUTE
 
@@ -128,12 +133,9 @@ def clean_messages(messages: list[Message]):
     
     return formatteed_convos
 
-async def get_suggestions(raw_messages):
-    messages = format_messages(raw_messages)
-    clean_messages(messages)
-
 if __name__ == "__main__":
     with open("./texts.txt", "r") as f:
         lines = f.readlines()
 
-    asyncio.run(get_suggestions(lines))
+    messages = format_messages(lines)
+    formatted_convos = clean_messages(messages)
