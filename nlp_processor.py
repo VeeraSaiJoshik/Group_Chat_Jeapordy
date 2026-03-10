@@ -30,13 +30,30 @@ You are the agent at the first step of the pipeline that further classifies thes
 - Add each identified message into category bins
 
 ### Step 2 : Initial Message Classification and Seeding [You are here]
+- Use LLM Agent to generate 3-4 strict descriptions for each of the categories based on the user generated data
+- Parse through all the sentences and identify a average Cosine_Sim score between the strict descriptions of each category and each message in the corpus
+- Identify the top 20 messages with the highest Cosine_Sim score for each category and add them to the category bins.
 
 ### Step 3 : Category Pre-Processing & Clustering
-- Use LLM Agent to generate 5-10 strict descriptions for each category based on Jeapordy Category name and description and words
-- 
+- Use another LLM agent (this is NOT YOU) to generate style-matched quotes for each category based on the inital seeds
+- Use these quotes as a content reference to use one-shot classification through centroid generation to finish the category bins
 
 ### Step 4 : Discrete Weight-Based Sorting
 ### Step 5 : LLM Final Selection
+
+Now that you know how your input plays into the grand scheme of the shortlisting pipeline, your task is to generate 3-4 strict descriptions for each category based on the user generated data. These descriptions should be more concrete and detailed than the original user prompt and should give a clear picture of what type of messages should be shortlisted for that category.
+
+Your input will have the following list : 
+{
+    categories: list[Jeapordy Category]
+}
+
+Your output should be in the following format :
+{
+    "category_name": list["string"] <= string of strict descriptions
+}
+
+Return nothing else — no preamble, no markdown, no backticks.
 """
 
 class Keyword: 
