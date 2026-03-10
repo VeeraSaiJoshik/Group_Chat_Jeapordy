@@ -5,6 +5,7 @@ from tqdm import tqdm
 import math
 import re
 from sentence_transformers import SentenceTransformer, util
+from spellchecker import SpellChecker
 
 MINUTE = 60
 
@@ -15,7 +16,7 @@ class Message:
         raw_time = raw_date_time.split(", ")[1] 
 
         self.date_time = datetime.strptime(f"{raw_date}, {raw_time}", "%m/%d/%y, %I:%M:%S %p") 
-        self.text = message.split(": ")[1] if len(message.split(": ")) > 1 else ""
+        self.text = " ".join([msg.strip() for msg in message.split(": ")[1:]]) if len(message.split(": ")) > 1 else ""
         self.author = message.split(": ")[0].split("] ")[1].strip()
         self.encoding = None
 
@@ -35,7 +36,7 @@ class Convo:
         if len(stripped) < 10: return False   
 
         # Native Media
-        key_phrases = ["<Media omitted>", "This message was deleted", "missed call", "audio omitted", "image omitted", "sticker omitted", "POLL"]
+        key_phrases = ["<Media omitted>", "This message was deleted", "missed call", "audio omitted", "image omitted", "sticker omitted", "POLL", "image omitted", "GIF omitted", "video omitted", "document omitted", "contact omitted", "location omitted"]
         if True in [phrase in message for phrase in key_phrases]: return False
 
         return True
@@ -49,6 +50,10 @@ class Convo:
 
 
 def full_message(line: str):
+    line = line.strip()
+    line = line.replace("\u200e", "").replace("\u202f", " ")
+    if len(line) == 0:
+        return False
     return line[0] == "[" and "]" in line and ("AM" in line or "PM" in line)
 
 def remove_short_outliers(conversations: list[list[Message]]) -> list[list[Message]]:                                                                                            
@@ -80,10 +85,30 @@ def format_messages(input_msgs: list[str]) -> list[Message] :
     formatted_messages: list[Message] = [Message(line) for line in tqdm(cleaned_up_raw_messages)]
     print("💬 Raw Message Count: ", len(formatted_messages))
 
-    # dedupping message
+    # dedup messages
+    def transform_text(text: str):
+        for punc in "$%&'()*+,-.:;<=>?@[]^_`{|}" :
+            text = text.replace(punc, " ")
+        return text
+    
+    unique_messages = {}
     dedup_messages = []
+
+    for message in tqdm(formatted_messages):
+        msg = transform_text(message.text)
+        if msg in unique_messages :
+            if unique_messages[msg] < 5 : 
+                unique_messages[msg] += 1
+                dedup_messages.append(message)
+        else : 
+            unique_messages[msg] = 1
+            dedup_messages.append(message)
+
+    print("💬 Raw Message Count: ", len(dedup_messages))
+    # joining messages
+    joined_messages = []
     cache = ""
-    for message in tqdm(formatted_messages): 
+    for message in tqdm(dedup_messages): 
         if cache == "" : 
             cache = message 
             continue
@@ -91,13 +116,13 @@ def format_messages(input_msgs: list[str]) -> list[Message] :
         if cache.author == message.author and math.fabs((message.date_time - cache.date_time).total_seconds()) < MINUTE: 
             cache.text += " " + message.text
         else : 
-            dedup_messages.append(cache)
+            joined_messages.append(cache)
             cache = message
     
-    dedup_messages.append(cache)
-    print("💬 Raw Message Count: ", len(dedup_messages))
+    joined_messages.append(cache)
+    print("💬 Raw Message Count: ", len(joined_messages))
 
-    return dedup_messages
+    return joined_messages
 
 def remove_short_outliers(conversations: list[list[Message]]) -> list[list[Message]]:                                                                                            
       lengths = [len(c) for c in conversations]                                                                                                                                    
@@ -106,9 +131,6 @@ def remove_short_outliers(conversations: list[list[Message]]) -> list[list[Messa
       return [c for c in conversations if len(c) >= lower_bound]
 
 def clean_messages(messages: list[Message]):
-    # removing messages that are reoccuring
-    # TODO
-
     # removing messages from stale conversations
     is_ingroup = lambda prevs, message : math.fabs((prevs[-1].date_time - message.date_time).total_seconds()) < 60 * MINUTE
 
